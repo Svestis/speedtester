@@ -1,0 +1,17 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Speed test output - personal usage data, never commit
+*.csv
+logs/
+speedtest_report.html
+
+# macOS
+.DS_Store
+
+# PyCharm - keep shareable run configs, ignore machine-specific state
+.idea/*
+!.idea/runConfigurations/
+!.idea/runConfigurations/**

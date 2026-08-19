@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Speedtester report</title>
+<style>
+  .viz-root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --page-plane:     #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:       #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --series-1:       #2a78d6;
+    --series-2:       #eb6834;
+    --series-3:       #1baf7a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --surface-1:      #1a1a19;
+      --page-plane:     #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --gridline:       #2c2c2a;
+      --baseline:       #383835;
+      --border:         rgba(255,255,255,0.10);
+      --series-1:       #3987e5;
+      --series-2:       #d95926;
+      --series-3:       #199e70;
+    }
+  }
+  :root[data-theme="dark"] .viz-root {
+    color-scheme: dark;
+    --surface-1:      #1a1a19;
+    --page-plane:     #0d0d0d;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #898781;
+    --gridline:       #2c2c2a;
+    --baseline:       #383835;
+    --border:         rgba(255,255,255,0.10);
+    --series-1:       #3987e5;
+    --series-2:       #d95926;
+    --series-3:       #199e70;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--page-plane);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .viz-root { background: var(--page-plane); padding: 32px 16px 64px; }
+  .wrap { max-width: 980px; margin: 0 auto; }
+
+  header.page-header { margin-bottom: 24px; }
+  header.page-header h1 { font-size: 22px; margin: 0 0 4px; color: var(--text-primary); }
+  header.page-header p { margin: 0; font-size: 13px; color: var(--text-muted); }
+
+  .filter-row { display: flex; gap: 8px; margin-bottom: 20px; }
+  .filter-btn {
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-secondary);
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .filter-btn.active { background: var(--series-1); color: #fff; border-color: var(--series-1); }
+
+  .tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .tile {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  .tile-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
+  .tile-value { font-size: 20px; font-weight: 600; color: var(--text-primary); }
+
+  .card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 20px 8px;
+    margin-bottom: 16px;
+    position: relative;
+  }
+  .card h2 { font-size: 14px; margin: 0 0 12px; color: var(--text-primary); font-weight: 600; }
+  .chart-svg { width: 100%; height: auto; display: block; overflow: visible; }
+
+  .gridline { stroke: var(--gridline); stroke-width: 1; }
+  .baseline { stroke: var(--baseline); stroke-width: 1; }
+  .axis-label { fill: var(--text-muted); font-size: 10px; }
+  .line-mark { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .end-dot { stroke: var(--surface-1); stroke-width: 2; }
+  .end-label { fill: var(--text-secondary); font-size: 11px; font-weight: 600; }
+  .crosshair { stroke: var(--text-muted); stroke-width: 1; }
+  .empty-label { fill: var(--text-muted); font-size: 13px; }
+
+  .legend { display: flex; gap: 16px; justify-content: center; margin: 4px 0 16px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+  .legend-swatch { width: 16px; height: 3px; border-radius: 2px; display: inline-block; }
+  .chart-note { font-size: 11px; color: var(--text-muted); text-align: center; margin: 0 0 14px; }
+
+  .tooltip {
+    position: absolute;
+    display: none;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 12px;
+    pointer-events: none;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    z-index: 10;
+    white-space: nowrap;
+  }
+  .tt-date { font-weight: 600; color: var(--text-primary); margin-bottom: 4px; }
+  .tt-row { display: flex; align-items: center; gap: 6px; }
+  .tt-key { width: 12px; height: 3px; border-radius: 2px; flex: none; }
+  .tt-value { font-weight: 600; color: var(--text-primary); }
+  .tt-label { color: var(--text-secondary); margin-left: auto; padding-left: 10px; }
+  .tt-meta { margin-top: 4px; font-size: 11px; color: var(--text-muted); }
+
+  details.table-card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 4px 20px; }
+  details.table-card summary { cursor: pointer; padding: 14px 0; font-size: 14px; font-weight: 600; color: var(--text-primary); }
+  .table-wrap { max-height: 420px; overflow: auto; margin-bottom: 16px; }
+  table.data-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 13px; }
+  table.data-table th { text-align: left; color: var(--text-muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.02em; padding: 6px 8px; border-bottom: 1px solid var(--gridline); position: sticky; top: 0; background: var(--surface-1); }
+  table.data-table td { padding: 6px 8px; border-bottom: 1px solid var(--gridline); color: var(--text-secondary); }
+  table.data-table td.primary { color: var(--text-primary); }
+  .table-note { font-size: 11px; color: var(--text-muted); padding-bottom: 12px; }
+</style>
+</head>
+<body>
+<div class="viz-root">
+  <div class="wrap">
+    <header class="page-header">
+      <h1>Speedtester report</h1>
+      <p>Generated __GENERATED__ from __SOURCE__</p>
+    </header>
+
+    <div class="filter-row" role="group" aria-label="Date range">
+      <button class="filter-btn active" data-days="all">All time</button>
+      <button class="filter-btn" data-days="7">Last 7 days</button>
+      <button class="filter-btn" data-days="30">Last 30 days</button>
+      <button class="filter-btn" data-days="90">Last 90 days</button>
+    </div>
+
+    <div class="tiles">
+      <div class="tile"><div class="tile-label">Tests logged</div><div class="tile-value" id="stat-count">–</div></div>
+      <div class="tile"><div class="tile-label">Date range</div><div class="tile-value" id="stat-range">–</div></div>
+      <div class="tile"><div class="tile-label">Avg download</div><div class="tile-value" id="stat-avgd">–</div></div>
+      <div class="tile"><div class="tile-label">Avg upload</div><div class="tile-value" id="stat-avgu">–</div></div>
+      <div class="tile"><div class="tile-label">Avg ping</div><div class="tile-value" id="stat-avgp">–</div></div>
+    </div>
+
+    <div class="card">
+      <h2>Download &amp; upload (Mbps)</h2>
+      <div id="chart-speed"></div>
+      <div class="tooltip" id="tooltip-speed"></div>
+    </div>
+
+    <div class="card">
+      <h2>Ping (ms)</h2>
+      <div id="chart-ping"></div>
+      <div class="tooltip" id="tooltip-ping"></div>
+    </div>
+
+    <details class="table-card">
+      <summary>View as table (<span id="table-count">0</span> rows)</summary>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr><th>Time</th><th>Download</th><th>Upload</th><th>Ping</th><th>Server</th></tr>
+          </thead>
+          <tbody id="data-tbody"></tbody>
+        </table>
+      </div>
+      <div class="table-note" id="table-note"></div>
+    </details>
+  </div>
+</div>
+
+<script>
+const DATA = __DATA_JSON__;
+const NS = 'http://www.w3.org/2000/svg';
+const TABLE_ROW_LIMIT = 500;
+
+function el(tag, attrs) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+
+function trimNum(v) {
+  return (Math.round(v * 100) / 100).toString();
+}
+
+function formatDate(ms) {
+  return new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function formatDateFull(ms) {
+  return new Date(ms).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function niceNum(range, round) {
+  const exp = Math.floor(Math.log10(range));
+  const frac = range / Math.pow(10, exp);
+  let niceFrac;
+  if (round) {
+    if (frac < 1.5) niceFrac = 1;
+    else if (frac < 3) niceFrac = 2;
+    else if (frac < 7) niceFrac = 5;
+    else niceFrac = 10;
+  } else {
+    if (frac <= 1) niceFrac = 1;
+    else if (frac <= 2) niceFrac = 2;
+    else if (frac <= 5) niceFrac = 5;
+    else niceFrac = 10;
+  }
+  return niceFrac * Math.pow(10, exp);
+}
+
+function niceTicks(min, max, count) {
+  if (min === max) { min -= 1; max += 1; }
+  const range = niceNum(max - min, false);
+  const step = niceNum(range / (count - 1), true);
+  const niceMin = Math.floor(min / step) * step;
+  const niceMax = Math.ceil(max / step) * step;
+  const ticks = [];
+  for (let v = niceMin; v <= niceMax + step * 0.5; v += step) ticks.push(+v.toFixed(6));
+  return ticks;
+}
+
+function percentile(sortedVals, p) {
+  if (!sortedVals.length) return 0;
+  const idx = (sortedVals.length - 1) * p;
+  const lo = Math.floor(idx), hi = Math.ceil(idx);
+  if (lo === hi) return sortedVals[lo];
+  return sortedVals[lo] + (sortedVals[hi] - sortedVals[lo]) * (idx - lo);
+}
+
+function pathFromPoints(pts) {
+  return pts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0].toFixed(2) + ',' + p[1].toFixed(2)).join(' ');
+}
+
+function makeScaleX(data, x0, x1) {
+  const tMin = data[0].t, tMax = data[data.length - 1].t;
+  const span = Math.max(tMax - tMin, 1);
+  return t => x0 + (t - tMin) / span * (x1 - x0);
+}
+
+function makeScaleY(min, max, y0, y1) {
+  const span = (max - min) || 1;
+  return v => y1 - (v - min) / span * (y1 - y0);
+}
+
+function showTooltip(tooltip, d, series, unit) {
+  tooltip.textContent = '';
+  const dateEl = document.createElement('div');
+  dateEl.className = 'tt-date';
+  dateEl.textContent = formatDateFull(d.t);
+  tooltip.appendChild(dateEl);
+  series.forEach(s => {
+    const row = document.createElement('div');
+    row.className = 'tt-row';
+    const key = document.createElement('span');
+    key.className = 'tt-key';
+    key.style.background = s.color;
+    const value = document.createElement('span');
+    value.className = 'tt-value';
+    value.textContent = trimNum(d[s.key]) + ' ' + unit;
+    const label = document.createElement('span');
+    label.className = 'tt-label';
+    label.textContent = s.label;
+    row.appendChild(key);
+    row.appendChild(value);
+    row.appendChild(label);
+    tooltip.appendChild(row);
+  });
+  if (d.s) {
+    const meta = document.createElement('div');
+    meta.className = 'tt-meta';
+    meta.textContent = d.s;
+    tooltip.appendChild(meta);
+  }
+  tooltip.style.display = 'block';
+  tooltip.style.left = '0px';
+  tooltip.style.top = '0px';
+}
+
+function positionTooltip(tooltip, card, clientX, clientY) {
+  const rect = card.getBoundingClientRect();
+  tooltip.style.left = Math.round(clientX - rect.left + 14) + 'px';
+  tooltip.style.top = Math.round(clientY - rect.top + 14) + 'px';
+}
+
+function hideTooltip(tooltip) {
+  tooltip.style.display = 'none';
+}
+
+function renderLineChart(container, tooltip, data, series, unit, title) {
+  container.innerHTML = '';
+  const W = 800, H = 260, padL = 40, padR = 16, padT = 16, padB = 26;
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, class: 'chart-svg', role: 'img', 'aria-label': title });
+
+  if (!data.length) {
+    const t = el('text', { x: W / 2, y: H / 2, 'text-anchor': 'middle', class: 'empty-label' });
+    t.textContent = 'No data in this range';
+    svg.appendChild(t);
+    container.appendChild(svg);
+    if (series.length > 1) container.appendChild(buildLegend(series));
+    return;
+  }
+
+  const allVals = [];
+  data.forEach(d => series.forEach(s => allVals.push(d[s.key])));
+  const sortedVals = allVals.slice().sort((a, b) => a - b);
+  const vMin = sortedVals[0];
+  const trueMax = sortedVals[sortedVals.length - 1];
+  const q1 = percentile(sortedVals, 0.25);
+  const q3 = percentile(sortedVals, 0.75);
+  const iqr = q3 - q1;
+  const fence = q3 + 1.5 * iqr;
+  const vMax = (iqr > 0 && trueMax > fence) ? fence : trueMax;
+  const clippedCount = data.filter(d => series.some(s => d[s.key] > vMax)).length;
+  const ticks = niceTicks(vMin, vMax, 4);
+  const yMin = ticks[0], yMax = ticks[ticks.length - 1];
+  const x = makeScaleX(data, padL, W - padR);
+  const y = makeScaleY(yMin, yMax, padT, H - padB);
+  const yClamp = v => Math.min(Math.max(y(v), padT), H - padB);
+
+  ticks.forEach(tv => {
+    const gy = y(tv);
+    svg.appendChild(el('line', { x1: padL, x2: W - padR, y1: gy, y2: gy, class: 'gridline' }));
+    const lbl = el('text', { x: padL - 8, y: gy, class: 'axis-label', 'text-anchor': 'end', 'dominant-baseline': 'middle' });
+    lbl.textContent = trimNum(tv);
+    svg.appendChild(lbl);
+  });
+  svg.appendChild(el('line', { x1: padL, x2: W - padR, y1: H - padB, y2: H - padB, class: 'baseline' }));
+
+  const xTickIdx = data.length > 1 ? [0, Math.floor((data.length - 1) / 2), data.length - 1] : [0];
+  const seen = new Set();
+  xTickIdx.forEach(i => {
+    if (seen.has(i)) return;
+    seen.add(i);
+    const d = data[i];
+    const gx = x(d.t);
+    const anchor = i === 0 ? 'start' : (i === data.length - 1 ? 'end' : 'middle');
+    const lbl = el('text', { x: gx, y: H - padB + 16, class: 'axis-label', 'text-anchor': anchor });
+    lbl.textContent = formatDate(d.t);
+    svg.appendChild(lbl);
+  });
+
+  series.forEach(s => {
+    const pts = data.map(d => [x(d.t), yClamp(d[s.key])]);
+    svg.appendChild(el('path', { d: pathFromPoints(pts), class: 'line-mark', style: `stroke:${s.color}` }));
+    const [ex, ey] = pts[pts.length - 1];
+    svg.appendChild(el('circle', { cx: ex, cy: ey, r: 4, class: 'end-dot', style: `fill:${s.color}` }));
+    const lastVal = data[data.length - 1][s.key];
+    const lbl = el('text', { x: Math.min(ex + 8, W - 4), y: ey, class: 'end-label', 'dominant-baseline': 'middle', 'text-anchor': ex + 8 > W - 40 ? 'end' : 'start' });
+    lbl.textContent = trimNum(lastVal) + ' ' + unit;
+    svg.appendChild(lbl);
+  });
+
+  const cross = el('line', { x1: 0, x2: 0, y1: padT, y2: H - padB, class: 'crosshair', style: 'display:none' });
+  svg.appendChild(cross);
+
+  const overlay = el('rect', { x: padL, y: padT, width: Math.max(W - padL - padR, 1), height: Math.max(H - padT - padB, 1), fill: 'transparent', style: 'cursor:crosshair' });
+  const card = container.closest('.card');
+  overlay.addEventListener('pointermove', ev => {
+    const rect = svg.getBoundingClientRect();
+    const px = (ev.clientX - rect.left) / rect.width * W;
+    const tMin = data[0].t, tMax = data[data.length - 1].t;
+    const span = Math.max(tMax - tMin, 1);
+    const tGuess = tMin + (px - padL) / (W - padL - padR) * span;
+    let idx = 0, best = Infinity;
+    data.forEach((d, i) => {
+      const diff = Math.abs(d.t - tGuess);
+      if (diff < best) { best = diff; idx = i; }
+    });
+    const d = data[idx];
+    const gx = x(d.t);
+    cross.setAttribute('x1', gx);
+    cross.setAttribute('x2', gx);
+    cross.style.display = '';
+    showTooltip(tooltip, d, series, unit);
+    positionTooltip(tooltip, card, ev.clientX, ev.clientY);
+  });
+  overlay.addEventListener('pointerleave', () => {
+    cross.style.display = 'none';
+    hideTooltip(tooltip);
+  });
+  svg.appendChild(overlay);
+
+  container.appendChild(svg);
+  if (series.length > 1) container.appendChild(buildLegend(series));
+  if (clippedCount > 0) {
+    const note = document.createElement('div');
+    note.className = 'chart-note';
+    note.textContent = `Axis capped at the outlier fence (Q3 + 1.5×IQR) — ${clippedCount} point${clippedCount > 1 ? 's' : ''} run higher; hover the flattened peak to see the exact value.`;
+    container.appendChild(note);
+  }
+}
+
+function buildLegend(series) {
+  const legend = document.createElement('div');
+  legend.className = 'legend';
+  series.forEach(s => {
+    const item = document.createElement('span');
+    item.className = 'legend-item';
+    const swatch = document.createElement('span');
+    swatch.className = 'legend-swatch';
+    swatch.style.background = s.color;
+    const label = document.createElement('span');
+    label.textContent = s.label;
+    item.appendChild(swatch);
+    item.appendChild(label);
+    legend.appendChild(item);
+  });
+  return legend;
+}
+
+function computeStats(data) {
+  if (!data.length) return { count: 0, range: '–', avgD: '–', avgU: '–', avgP: '–' };
+  const avg = key => data.reduce((sum, d) => sum + d[key], 0) / data.length;
+  const range = data.length > 1
+    ? formatDate(data[0].t) + ' – ' + formatDate(data[data.length - 1].t)
+    : formatDate(data[0].t);
+  return {
+    count: data.length,
+    range,
+    avgD: trimNum(avg('d')) + ' Mbps',
+    avgU: trimNum(avg('u')) + ' Mbps',
+    avgP: trimNum(avg('p')) + ' ms',
+  };
+}
+
+function rebuildTable(data) {
+  const tbody = document.getElementById('data-tbody');
+  tbody.textContent = '';
+  const rows = data.slice(-TABLE_ROW_LIMIT).reverse();
+  rows.forEach(d => {
+    const tr = document.createElement('tr');
+    const cells = [
+      [formatDateFull(d.t), true],
+      [trimNum(d.d) + ' Mbps', false],
+      [trimNum(d.u) + ' Mbps', false],
+      [trimNum(d.p) + ' ms', false],
+      [d.s || '', false],
+    ];
+    cells.forEach(([text, primary]) => {
+      const td = document.createElement('td');
+      if (primary) td.className = 'primary';
+      td.textContent = text;
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  document.getElementById('table-count').textContent = data.length;
+  const note = document.getElementById('table-note');
+  note.textContent = data.length > TABLE_ROW_LIMIT
+    ? `Showing the most recent ${TABLE_ROW_LIMIT} of ${data.length} rows.`
+    : '';
+}
+
+function renderAll(data) {
+  const stats = computeStats(data);
+  document.getElementById('stat-count').textContent = stats.count;
+  document.getElementById('stat-range').textContent = stats.range;
+  document.getElementById('stat-avgd').textContent = stats.avgD;
+  document.getElementById('stat-avgu').textContent = stats.avgU;
+  document.getElementById('stat-avgp').textContent = stats.avgP;
+
+  renderLineChart(
+    document.getElementById('chart-speed'),
+    document.getElementById('tooltip-speed'),
+    data,
+    [
+      { key: 'd', label: 'Download', color: 'var(--series-1)' },
+      { key: 'u', label: 'Upload', color: 'var(--series-2)' },
+    ],
+    'Mbps',
+    'Download and upload speed over time'
+  );
+  renderLineChart(
+    document.getElementById('chart-ping'),
+    document.getElementById('tooltip-ping'),
+    data,
+    [{ key: 'p', label: 'Ping', color: 'var(--series-3)' }],
+    'ms',
+    'Ping over time'
+  );
+
+  rebuildTable(data);
+}
+
+function applyFilter(days) {
+  if (days === 'all' || !DATA.length) return DATA;
+  const maxT = DATA[DATA.length - 1].t;
+  const cutoff = maxT - Number(days) * 86400000;
+  return DATA.filter(d => d.t >= cutoff);
+}
+
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderAll(applyFilter(btn.dataset.days));
+  });
+});
+
+renderAll(DATA);
+</script>
+</body>
+</html>
